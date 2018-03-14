@@ -7,7 +7,6 @@ import (
 	 "github.com/docker/docker/api/types"     // Docker API networking types library
 	"errors"
 	"log"
-	"fmt"
 	"time"
 	"strings"
 	"encoding/json"
@@ -27,17 +26,17 @@ func InitDockerClient() (*client.Client, error) {
 
 func main () {
 	if len(os.Args)==1 {
-		fmt.Printf("Usage: PROG containerId")
+		log.Fatalf("Usage: %s containerId", os.Args[0])
 	}
 	myClient, err := InitDockerClient()
 	if err != nil{
 		log.Fatalf("Error initialize docker client %s ", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*3)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 	defer cancel ()
 
 	stats:=ContainerStats(ctx, myClient, os.Args[1])
-	fmt.Printf("Max values aha\n%s\n", stats)
+	log.Printf("Max values aha\n%s\n", stats)
 }
 type StatsEntry struct {
 	CPUPercentage float64 `json:"cpuPercent"`
@@ -65,6 +64,7 @@ func (c *StatsEntry) SetMaxStats (s StatsEntry) {
 		c.BlockWrite = s.BlockWrite
 	}
 }
+/** returns the maximum values of resources as consumed by the container */
 func ContainerStats (ctx context.Context, cli *client.Client, containerId string) StatsEntry{
 	var MaxStats = StatsEntry{}
 
@@ -93,6 +93,7 @@ func collect(ctx context.Context, containerId string,cli client.APIClient, strea
 
 
 	)
+	log.Printf("Collecting container stats for %s\n", containerId)
 	timeout := false
 	// is msgCtx closes, stop trying
 	go func() {
@@ -109,7 +110,7 @@ func collect(ctx context.Context, containerId string,cli client.APIClient, strea
 
 	dec := json.NewDecoder(response.Body)
 	for {
-		fmt.Printf("-")
+		log.Printf("-")
 		if timeout {
 			// only if imgCtx is closed
 			endErr := errors.New("Request timed out")
@@ -125,14 +126,14 @@ func collect(ctx context.Context, containerId string,cli client.APIClient, strea
 
 		i:=0
 		if err := dec.Decode(&v); err != nil {
-			fmt.Printf("Err :%s\n",err.Error())
+			log.Printf("Err :%v\n",err)
 			dec = json.NewDecoder(io.MultiReader(dec.Buffered(), response.Body))
 			if err == io.EOF {
 				doneChan <- true
 				return
 			} else {
 				if i>100 {
-					fmt.Printf("Got more error than I like: err=%s\n", err.Error())
+					log.Printf("Got more error than I like: err=%s\n", err.Error())
 					errChan <- err
 					return
 				}
